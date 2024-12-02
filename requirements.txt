@@ -2,7 +2,6 @@ anyio==4.6.2.post1
 argcomplete==1.8.1
 asgiref==3.8.1
 async-timeout==5.0.1
-attrs==21.2.0
 autobahn==24.4.2
 Automat==20.2.0
 Babel==2.8.0
@@ -74,7 +73,6 @@ PyJWT==2.3.0
 pymacaroons==0.13.0
 PyNaCl==1.5.0
 pyOpenSSL==21.0.0
-pyparsing==2.4.7
 pyrsistent==0.18.1
 pyserial==3.5
 pytest==6.2.5
