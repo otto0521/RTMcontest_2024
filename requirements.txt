@@ -82,7 +82,6 @@ pyparsing==2.4.7
 pyrsistent==0.18.1
 pyserial==3.5
 pytest==6.2.5
-python-apt==2.4.0+ubuntu4
 python-dateutil==2.8.1
 python-debian==0.1.43+ubuntu1.1
 python-dotenv==1.0.1
