@@ -29,7 +29,6 @@ flake8==4.0.1
 Flask==3.1.0
 gevent==24.11.1
 greenlet==3.1.1
-gyp==0.1
 h11==0.13.0
 html5lib==1.1
 httplib2==0.20.2
