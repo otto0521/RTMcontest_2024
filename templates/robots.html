@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}RTcontest2024 Robot State Monitoring{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <h1 class="text-center text-white">RTcontest2024 Robot State Monitoring</h1>
+    <div class="text-center my-3">
+        <span class="text-light">Logged in as: <strong class="text-info">{{ user.username }}</strong></span>
+        <a href="{% url 'logout' %}" class="btn btn-danger btn-sm ms-3">Log Out</a>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-dark table-striped text-center align-middle">
+            <thead>
+                <tr>
+                    <th scope="col">Robot ID</th>
+                    <th scope="col">State</th>
+                    <th scope="col">Last Updated</th>
+                    <th scope="col">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="robot-list">
+                {% for robot in robots %}
+                <tr id="robot-{{ robot.unique_robot_id }}">
+                    <td>{{ robot.robot_id }}</td>
+                    <td>
+                        <span id="state-{{ robot.unique_robot_id }}">Non-connect</span>
+                    </td>
+                    <td>
+                        <span id="last-updated-{{ robot.unique_robot_id }}">{{ robot.last_connected }}</span>
+                    </td>
+                    <td>
+                        <button class="btn btn-danger btn-sm" onclick="deleteRobot('{{ robot.unique_robot_id }}')">Delete</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script id="robots-data" type="application/json">
+    {{ robots_json|safe }}
+</script>
+
+<script>
+    const robots = JSON.parse(document.getElementById("robots-data").textContent);
+    let websocketConnections = {}; // WebSocket接続の管理
+
+    // WebSocket接続の処理
+    function connectWebSocket(unique_robot_id) {
+        if (websocketConnections[unique_robot_id]) {
+            return; // すでに接続中の場合は何もしない
+        }
+
+        const socketUrl = `ws://127.0.0.1:8000/ws/robots/?unique_robot_id=${unique_robot_id}`;
+        const socket = new WebSocket(socketUrl);
+        websocketConnections[unique_robot_id] = socket;
+
+        socket.onopen = () => {
+            console.log("WebSocket connection established for robot:", unique_robot_id);
+        };
+
+        socket.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                console.log("Received data:", data);
+                updateRobotRow(data);
+            } catch (error) {
+                console.error("Error processing WebSocket message:", error);
+            }
+        };
+
+        socket.onerror = (error) => {
+            console.error("WebSocket error:", error);
+            updateAllRobotsAsDisconnected();
+        };
+
+        socket.onclose = () => {
+            console.warn("WebSocket connection closed. Retrying in 5 seconds...");
+            updateAllRobotsAsDisconnected();
+            setTimeout(() => connectWebSocket(unique_robot_id), 5000); // 5秒後に再接続
+        };
+    }
+
+    // WebSocket接続開始
+    robots.forEach((robot) => {
+        connectWebSocket(robot.unique_robot_id);
+    });
+
+    function addNewRobot(robot) {
+    const robotList = document.getElementById("robot-list");
+
+    const newRow = document.createElement("tr");
+    newRow.id = `robot-${robot.unique_robot_id}`;
+
+    newRow.innerHTML = `
+        <td>${robot.robot_id}</td>
+        <td><span id="state-${robot.unique_robot_id}">Non-connect</span></td>
+        <td><span id="last-updated-${robot.unique_robot_id}">${robot.last_connected}</span></td>
+        <td>
+            <button class="btn btn-danger btn-sm" onclick="deleteRobot('${robot.unique_robot_id}')">Delete</button>
+        </td>
+    `;
+
+    robotList.appendChild(newRow);
+}
+
+    // Robot Rowの更新
+    function updateRobotRow(data) {
+        const uniqueId = data.unique_robot_id;  // ユニークIDを取得
+
+        // stateのデフォルト値
+        let stateEntries = "Non-connect"; 
+
+        // stateがオブジェクトの場合、そのキーと値を結合して表示
+        if (data.state && typeof data.state === "object") {
+            stateEntries = Object.entries(data.state)
+                .map(([key, value]) => `${key}: ${value}`)
+                .join(", ");
+        } else if (data.state) {
+            // stateが文字列の場合、そのまま表示
+            stateEntries = data.state;
+        }
+
+        // デバッグ用ログにユニークIDと状態を出力
+        console.log(`Updated state for robot ${uniqueId}: ${stateEntries}`);  // uniqueIdを表示
+
+        const lastUpdated = new Date().toLocaleString();  // 現在時刻を表示
+
+        // 該当する行を取得して、stateとlastUpdatedを更新
+        const row = document.getElementById(`robot-${uniqueId}`);
+        if (row) {
+            const stateElement = document.getElementById(`state-${uniqueId}`);
+            const lastUpdatedElement = document.getElementById(`last-updated-${uniqueId}`);
+
+            // stateが変更された場合のみ更新
+            if (stateElement && stateElement.textContent !== stateEntries) {
+                stateElement.textContent = stateEntries;
+            }
+            // lastUpdatedを更新
+            if (lastUpdatedElement) {
+                lastUpdatedElement.textContent = lastUpdated;
+            }
+        }
+    }
+
+    // 全てのロボットを接続解除状態に更新
+    function updateAllRobotsAsDisconnected() {
+        robots.forEach((robot) => {
+            const stateElement = document.getElementById(`state-${robot.unique_robot_id}`);
+            if (stateElement) {
+                stateElement.textContent = "Non-connect";
+            }
+        });
+    }
+
+    // ロボットの削除
+    function deleteRobot(uniqueId) {
+        if (!confirm(`Are you sure you want to delete this robot?`)) {
+            return;
+        }
+
+        fetch(`/api/robots/${uniqueId}/`, {
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+        })
+        .then(response => {
+            if (response.ok) {
+                const robotRow = document.getElementById(`robot-${uniqueId}`);
+                if (robotRow) {
+                    robotRow.remove();
+                }
+                // WebSocket接続の削除
+                if (websocketConnections[uniqueId]) {
+                    websocketConnections[uniqueId].close();
+                    delete websocketConnections[uniqueId];
+                }
+                console.log(`Robot ${uniqueId} deleted.`);
+            } else {
+                response.json().then(data => {
+                    alert(data.error || "An error occurred while deleting the robot.");
+                });
+            }
+        })
+        .catch(error => {
+            console.error("Error while deleting robot:", error);
+            alert("Failed to delete robot. Please try again.");
+        });
+    };
+
+</script>
+
+{% endblock %}

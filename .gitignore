@@ -1,0 +1,7 @@
+*.log
+*.pot
+*.pyc
+*.env
+*.sqlite3
+migrations/
+__pycache__/
