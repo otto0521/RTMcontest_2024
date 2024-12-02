@@ -104,7 +104,7 @@ tomli==2.1.0
 Twisted==22.1.0
 txaio==23.1.1
 typing_extensions==4.12.2
-ubuntu-pro-client==8001
+ubuntu-pro-client==31.2.4
 ufw==0.36.1
 unattended-upgrades==0.1
 urllib3==2.2.3
