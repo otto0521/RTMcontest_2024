@@ -25,7 +25,6 @@ docutils==0.17.1
 empy==3.3.4
 exceptiongroup==1.2.2
 flake8==4.0.1
-Flask==3.1.0
 gevent==24.11.1
 greenlet==3.1.1
 h11==0.13.0
