@@ -101,19 +101,18 @@ class RobotStateConsumer(AsyncWebsocketConsumer):
                 # キャッシュにデータを追加
                 self.append_to_cache(self.unique_robot_id, {
                     "robot_id": data["robot_id"],
-                    "state": data["state"],  # stateはそのまま辞書型で保存
+                    "state": data["state"], 
                     "timestamp": now(),
                 })
 
                 await self.broadcast_to_frontend({
-                    "message": "New data received",
                     "unique_robot_id": self.unique_robot_id,
                     "robot_id": data["robot_id"],
-                    "state": data["state"]  # 辞書型のstateをそのまま送信
+                    "state": data["state"] 
                 })
             elif "pong" in data:
                 # クライアントからpongが送られた場合
-                self.last_pong_time = time.time()  # pong受信時にタイマーをリセット
+                self.last_pong_time = time.time() 
             else:
                 logger.error("Invalid data received: Missing 'robot_id', 'state', or 'owner'")
         except json.JSONDecodeError as e:
@@ -223,9 +222,17 @@ class RobotStateConsumer(AsyncWebsocketConsumer):
 
     async def ping_pong_monitor(self):
         while True:
+            # 現在の時刻と最終pong受信時刻の差を確認
             if hasattr(self, 'last_pong_time') and time.time() - self.last_pong_time > self.pong_timeout:
-                logger.warning("Pong timeout exceeded. Closing connection.")
-                await self.close()
+                logger.warning(f"Pong timeout exceeded for robot {self.unique_robot_id}. Closing connection.")
+                await self.close(code=4003)  # タイムアウトで切断
+                break
+            try:
+                # Pingを送信
+                await self.send(text_data=json.dumps({"ping": "ping"}))
+                logger.info(f"Ping sent to robot {self.unique_robot_id}.")
+            except Exception as e:
+                logger.error(f"Error sending ping: {e}")
                 break
             await asyncio.sleep(self.ping_interval)
-            await self.send(text_data=json.dumps({"ping": "ping"}))
+
