@@ -55,7 +55,7 @@
             return; // すでに接続中の場合は何もしない
         }
 
-        const socketUrl = `ws://127.0.0.1:8000/ws/robots/?unique_robot_id=${unique_robot_id}`;
+        const socketUrl = `wss://monitoring.ddns.net/ws/robots/?unique_robot_id=${unique_robot_id}`;
         const socket = new WebSocket(socketUrl);
         websocketConnections[unique_robot_id] = socket;
 

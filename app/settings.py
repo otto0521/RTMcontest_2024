@@ -68,6 +68,7 @@ TEMPLATES = [
 WSGI_APPLICATION = "app.wsgi.application"
 ASGI_APPLICATION = "app.asgi.application"
 
+
 # チャンネルレイヤー (Redisバックエンド)
 CHANNEL_LAYERS = {
     "default": {
@@ -133,8 +134,8 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static"),
 ]
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
-MEDIA_URL = "/media/"
-MEDIA_ROOT = os.path.join(BASE_DIR, "media/")
+#MEDIA_URL = "/media/"
+#MEDIA_ROOT = os.path.join(BASE_DIR, "media/")
 
 # アップロード制限
 DATA_UPLOAD_MAX_NUMBER_FIELDS = 2000
