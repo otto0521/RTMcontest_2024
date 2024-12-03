@@ -146,30 +146,52 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 15728640
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "formatters": {
+        "verbose": {  # 時間やレベルを記録
+            "format": "{asctime} [{levelname}] {name} - {message}",
+            "style": "{",
+        },
+        "simple": {  # シンプルな出力（コンソール向け）
+            "format": "[{levelname}] {message}",
+            "style": "{",
+        },
+    },
     "handlers": {
         "file": {
-            "level": "ERROR",
+            "level": "DEBUG",  # すべてのログレベルを記録
             "class": "logging.FileHandler",
-            "filename": os.path.join(BASE_DIR, "logs/errors.log"),
+            "filename": os.path.join(BASE_DIR, "logs/all_logs.log"),
+            "formatter": "verbose",  # 詳細フォーマットを適用
         },
         "console": {
-            "level": "DEBUG",
+            "level": "DEBUG",  # 開発中はすべてのログを表示
             "class": "logging.StreamHandler",
+            "formatter": "simple",  # 簡易フォーマットを適用
         },
     },
     "loggers": {
-        "django": {
+        "django": {  # Djangoに関するログ
             "handlers": ["file", "console"],
-            "level": "ERROR" if not DEBUG else "DEBUG",
+            "level": "DEBUG",  # すべて記録
             "propagate": True,
         },
-        "channels": {
+        "channels": {  # Channelsのログ
             "handlers": ["file", "console"],
-            "level": "ERROR" if not DEBUG else "DEBUG",
+            "level": "DEBUG",
             "propagate": True,
+        },
+        "app": {  # カスタムアプリ用のログ
+            "handlers": ["file", "console"],
+            "level": "DEBUG",  # すべて記録
+            "propagate": True,
+        },
+        "": {  # ルートロガー（その他すべて）
+            "handlers": ["file", "console"],
+            "level": "DEBUG",
         },
     },
 }
+
 
 # セキュリティ設定（本番環境向け）
 if not DEBUG:
