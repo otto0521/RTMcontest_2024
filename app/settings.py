@@ -114,7 +114,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # ログイン関連設定
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/top/"
-LOGOUT_REDIRECT_URL = "/login/"
+LOGOUT_REDIRECT_URL = '/'
 
 # ロケール設定
 LANGUAGE_CODE = "ja"
@@ -138,7 +138,7 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 #MEDIA_ROOT = os.path.join(BASE_DIR, "media/")
 
 # アップロード制限
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 2000
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 20000
 FILE_UPLOAD_MAX_MEMORY_SIZE = 15728640
 DATA_UPLOAD_MAX_MEMORY_SIZE = 15728640
 
@@ -172,22 +172,22 @@ LOGGING = {
     "loggers": {
         "django": {  # Djangoに関するログ
             "handlers": ["file", "console"],
-            "level": "DEBUG",  # すべて記録
+            "level": 'WARNING',  # すべて記録
             "propagate": True,
         },
         "channels": {  # Channelsのログ
             "handlers": ["file", "console"],
-            "level": "DEBUG",
+            "level": 'WARNING',
             "propagate": True,
         },
         "app": {  # カスタムアプリ用のログ
             "handlers": ["file", "console"],
-            "level": "DEBUG",  # すべて記録
+            "level": 'WARNING',  # すべて記録
             "propagate": True,
         },
         "": {  # ルートロガー（その他すべて）
             "handlers": ["file", "console"],
-            "level": "DEBUG",
+            "level": 'WARNING',
         },
     },
 }

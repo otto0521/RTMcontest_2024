@@ -5,20 +5,24 @@
 
 {% block content %}
 <div class="container mt-5">
-    <h1 class="text-center text-white">RTcontest2024 Robot State Monitoring</h1>
+    <h1 class="text-center text-white">RTmiddlewear_contest_2024 Robot State Monitoring</h1>
     <div class="text-center my-3">
         <span class="text-light">Logged in as: <strong class="text-info">{{ user.username }}</strong></span>
-        <a href="{% url 'logout' %}" class="btn btn-danger btn-sm ms-3">Log Out</a>
+        <form method="post" action="{% url 'logout' %}" class="d-inline">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-sm ms-3">Log Out</button>
+        </form>
     </div>
 
     <div class="table-responsive">
         <table class="table table-dark table-striped text-center align-middle">
             <thead>
                 <tr>
-                    <th scope="col">Robot ID</th>
-                    <th scope="col">State</th>
-                    <th scope="col">Last Updated</th>
-                    <th scope="col">Actions</th>
+                    <th scope="col" style="width: 15%;">Robot ID</th>
+                    <th scope="col" style="width: 15%;">State</th>
+                    <th scope="col" style="width: 20%;">Connection Time</th>
+                    <th scope="col" style="width: 25%;">Last Updated</th>
+                    <th scope="col" style="width: 25%;">Actions</th>
                 </tr>
             </thead>
             <tbody id="robot-list">
@@ -26,12 +30,16 @@
                 <tr id="robot-{{ robot.unique_robot_id }}">
                     <td>{{ robot.robot_id }}</td>
                     <td>
-                        <span id="state-{{ robot.unique_robot_id }}">Non-connect</span>
+                        <span id="state-{{ robot.unique_robot_id }}">Non-Connect</span>
                     </td>
                     <td>
-                        <span id="last-updated-{{ robot.unique_robot_id }}">{{ robot.last_connected }}</span>
+                        <span id="connection-time-{{ robot.unique_robot_id }}">00:00:00</span>
                     </td>
                     <td>
+                        <span id="last-updated-{{ robot.unique_robot_id }}">{{ robot.latest_timestamp }}</span>
+                    </td>
+                    <td>
+                        <a href="{% url 'robot_detail' robot.unique_robot_id %}" class="btn btn-primary  btn-sm mx-2">Details</a>
                         <button class="btn btn-danger btn-sm" onclick="deleteRobot('{{ robot.unique_robot_id }}')">Delete</button>
                     </td>
                 </tr>
@@ -47,114 +55,120 @@
 
 <script>
     const robots = JSON.parse(document.getElementById("robots-data").textContent);
-    let websocketConnections = {}; // WebSocket接続の管理
+    let socket;
+    const stateTimers = {}; // タイマー管理
+    const connectionTimers = {}; // 接続時間管理
 
-    // WebSocket接続の処理
-    function connectWebSocket(unique_robot_id) {
-        if (websocketConnections[unique_robot_id]) {
-            return; // すでに接続中の場合は何もしない
+     // WebSocket接続初期化
+     function initializeWebSocket() {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            return;
         }
 
-        const socketUrl = `wss://monitoring.ddns.net/ws/robots/?unique_robot_id=${unique_robot_id}`;
-        const socket = new WebSocket(socketUrl);
-        websocketConnections[unique_robot_id] = socket;
+        const socketUrl = `wss://monitoring.ddns.net/ws/frontend/`;
+        // const socketUrl = `ws://localhost:8000/ws/frontend/`;
+        socket = new WebSocket(socketUrl);
 
+        // 接続確立時処理
         socket.onopen = () => {
-            console.log("WebSocket connection established for robot:", unique_robot_id);
+            console.log("WebSocket connection established.");
         };
 
+        // メッセージ受信時処理
         socket.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                console.log("Received data:", data);
-                updateRobotRow(data);
-            } catch (error) {
-                console.error("Error processing WebSocket message:", error);
-            }
+        try {
+            console.log("Received data:", event.data);
+            const dataList = JSON.parse(event.data); 
+            console.log("Received data:", dataList);
+
+        // 各ロボットごとに行を更新
+        dataList.forEach((data) => {
+            updateRobotRow(data);
+        });
+        } catch (error) {
+            console.error("Error processing WebSocket message:", error);
+        }
         };
 
+        // エラー時処理
         socket.onerror = (error) => {
-            console.error("WebSocket error:", error);
-            updateAllRobotsAsDisconnected();
+        console.error("WebSocket error:", error);
         };
 
+        // 切断時処理
         socket.onclose = () => {
             console.warn("WebSocket connection closed. Retrying in 5 seconds...");
-            updateAllRobotsAsDisconnected();
-            setTimeout(() => connectWebSocket(unique_robot_id), 5000); // 5秒後に再接続
-        };
+            setTimeout(() => {
+                location.reload(); // WebSocket接続の再確立
+        }, 5000);
+    };
     }
 
-    // WebSocket接続開始
-    robots.forEach((robot) => {
-        connectWebSocket(robot.unique_robot_id);
-    });
+    // 行追加（未実装）
 
-    function addNewRobot(robot) {
-    const robotList = document.getElementById("robot-list");
+    // function addNewRobot(robot) {
+    // const robotList = document.getElementById("robot-list");
 
-    const newRow = document.createElement("tr");
-    newRow.id = `robot-${robot.unique_robot_id}`;
+    // const newRow = document.createElement("tr");
+    // newRow.id = `robot-${robot.unique_robot_id}`;
 
-    newRow.innerHTML = `
-        <td>${robot.robot_id}</td>
-        <td><span id="state-${robot.unique_robot_id}">Non-connect</span></td>
-        <td><span id="last-updated-${robot.unique_robot_id}">${robot.last_connected}</span></td>
-        <td>
-            <button class="btn btn-danger btn-sm" onclick="deleteRobot('${robot.unique_robot_id}')">Delete</button>
-        </td>
-    `;
+    // newRow.innerHTML = `
+    //     <td>${robot.robot_id}</td>
+    //     <td><span id="state-${robot.unique_robot_id}">Non-connect</span></td>
+    //     <td><span id="last-updated-${robot.unique_robot_id}">${robot.last_connected}</span></td>
+    //     <td>
+    //         <button class="btn btn-danger btn-sm" onclick="deleteRobot('${robot.unique_robot_id}')">Delete</button>
+    //     </td>
+    // `;
 
-    robotList.appendChild(newRow);
-}
+    // robotList.appendChild(newRow);
+    // }
 
-    // Robot Rowの更新
+    // 行データ更新
     function updateRobotRow(data) {
-        const uniqueId = data.unique_robot_id;  // ユニークIDを取得
+        const uniqueId = data.unique_robot_id;
+        const stateElement = document.getElementById(`state-${uniqueId}`);
+        const lastUpdatedElement = document.getElementById(`last-updated-${uniqueId}`);
+        const connectionTimeElement = document.getElementById(`connection-time-${uniqueId}`);
 
-        // stateのデフォルト値
-        let stateEntries = "Non-connect"; 
-
-        // stateがオブジェクトの場合、そのキーと値を結合して表示
-        if (data.state && typeof data.state === "object") {
-            stateEntries = Object.entries(data.state)
-                .map(([key, value]) => `${key}: ${value}`)
-                .join(", ");
-        } else if (data.state) {
-            // stateが文字列の場合、そのまま表示
-            stateEntries = data.state;
+        // 該当ロボットの行が存在しなければ処理を終了
+        if (!stateElement || !lastUpdatedElement || !connectionTimeElement) {
+            return;
         }
 
-        // デバッグ用ログにユニークIDと状態を出力
-        console.log(`Updated state for robot ${uniqueId}: ${stateEntries}`);  // uniqueIdを表示
+        // 状態を "Connecting" に更新
+        stateElement.textContent = "Connecting";
 
-        const lastUpdated = new Date().toLocaleString();  // 現在時刻を表示
+        // 接続時間更新
+        connectionTimeElement.textContent = data.connection_time || "00:00:00";
 
-        // 該当する行を取得して、stateとlastUpdatedを更新
-        const row = document.getElementById(`robot-${uniqueId}`);
-        if (row) {
-            const stateElement = document.getElementById(`state-${uniqueId}`);
-            const lastUpdatedElement = document.getElementById(`last-updated-${uniqueId}`);
+        // 最終更新時刻更新
+        lastUpdatedElement.textContent = new Date(data.timestamp).toLocaleString();
 
-            // stateが変更された場合のみ更新
-            if (stateElement && stateElement.textContent !== stateEntries) {
-                stateElement.textContent = stateEntries;
-            }
-            // lastUpdatedを更新
-            if (lastUpdatedElement) {
-                lastUpdatedElement.textContent = lastUpdated;
-            }
+        // "Non-Connecting" 判定用タイマーをリセット
+        if (stateTimers[uniqueId]) {
+                clearTimeout(stateTimers[uniqueId]);
         }
+
+        // タイマーを設定：データが 5 秒間来なかった場合に状態を変更
+        stateTimers[uniqueId] = setTimeout(() => {
+            stateElement.textContent = "Non-Connecting";
+            connectionTimeElement.textContent = "00:00:00"
+            resetConnectionTimer(uniqueId); // 接続時間をリセット
+        }, 5000);
     }
 
-    // 全てのロボットを接続解除状態に更新
-    function updateAllRobotsAsDisconnected() {
-        robots.forEach((robot) => {
-            const stateElement = document.getElementById(`state-${robot.unique_robot_id}`);
-            if (stateElement) {
-                stateElement.textContent = "Non-connect";
-            }
-        });
+    function resetConnectionTimer(uniqueId) {
+        if (connectionTimers[uniqueId]) {
+            clearInterval(connectionTimers[uniqueId]); // 既存のタイマーをクリア
+        }
+
+        const connectionTimeElement = document.getElementById(`connection-time-${uniqueId}`);
+        if (!connectionTimeElement) {
+            console.warn(`Connection time element for robot ${uniqueId} not found.`);
+            return;
+        }
+
     }
 
     // ロボットの削除
@@ -192,6 +206,20 @@
             alert("Failed to delete robot. Please try again.");
         });
     };
+
+    //リクエストの受信処理を独立
+    async function processRobotUpdates(dataList) {
+        await Promise.all(
+            dataList.map((data) => {
+                return new Promise((resolve) => {
+                    updateRobotRow(data);
+                    resolve();
+                });
+            })
+        );
+    }
+
+    initializeWebSocket();
 
 </script>
 

@@ -1,19 +1,20 @@
 from django.urls import path
 from django.shortcuts import redirect
 from . import views
-from django.contrib.auth.views import LoginView
+from django.contrib.auth.views import LoginView, LogoutView
 
 urlpatterns = [
     path('', lambda request: redirect('robot_dashboard')),
-    path('top/', views.robot_dashboard, name='robot_dashboard'),
-    path('signup/', views.signup, name='signup'),
+    path('top/', views.RobotDashboardView.as_view(), name='robot_dashboard'),
+    path('robots/<str:unique_robot_id>/', views.RobotDetailView.as_view(), name='robot_detail'),
+    path('signup/', views.SignupView.as_view(), name='signup'),
     path('login/', LoginView.as_view(template_name='login.html'), name='login'),
-    path('logout/', views.logout_view, name='logout'),
+    path('logout/', LogoutView.as_view(next_page='login'), name='logout'),
     
     # API endpoints
-    path('api/robots/', views.robot_list, name='robot_list'),
-    path('api/robots/<str:unique_robot_id>/', views.robot_detail, name='robot_detail'),
-    path('api/robots/<str:unique_robot_id>/history/', views.robot_state_history, name='robot_state_history'),
+    path('api/robots/', views.RobotListCreateAPIView.as_view(), name='robot_list_api'), 
+    path('api/robots/<str:unique_robot_id>/', views.RobotDetailAPIView.as_view(), name='robot_detail_api'),
+    path('api/robots/<str:unique_robot_id>/history/', views.RobotStateHistoryAPIView.as_view(), name='robot_state_history_api'),
 ]
 
 

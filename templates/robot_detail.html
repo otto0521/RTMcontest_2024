@@ -1,0 +1,236 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Robot Detail{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-12 text-center mb-5">
+            <h1>Robot State Monitoring / Robot Detail</h1>
+            <div class="text-center my-3">
+                <span class="text-light">Logged in as: <strong class="text-info">{{ user.username }}</strong></span>
+                <form method="post" action="{% url 'logout' %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger btn-sm ms-3">Log Out</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-md-6 col-sm-12"> 
+            <table class="table table-dark table-striped w-100" id="robot-detail-table" style="max-width: 100%;">
+                <thead>
+                    <tr>
+                        <th style="width: 50%;">Parameter</th>
+                        <th style="width: 50%;">Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th>Robot ID</th>
+                        <td>{{ robot.robot_id }}</td>
+                    </tr>
+                    <tr>
+                        <th>State</th>
+                        <td id="state-{{ robot.unique_robot_id }}">Non-Connect</td>
+                    </tr>
+                    <tr>
+                        <th>Last Updated</th>
+                        <td id="last-updated-{{ robot.unique_robot_id }}">{{ robot.latest_timestamp }}</td>
+                    </tr>
+                    <tr>
+                        <th>Connection Time</th>
+                        <td id="connection-time-{{ robot.unique_robot_id }}">00:00:00</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="col-md-6 col-sm-12 position-relative">
+            <div class="grid-container" id="map">
+                <div id="robot-icon" class="robot-icon"></div>
+            </div>
+        </div>
+    </div>
+    <div class="text-center mt-4">
+        <a href="{% url 'robot_dashboard' %}" class="btn btn-danger">Back to Top</a>
+    </div>
+</div>
+
+<script>
+    const uniqueRobotId = "{{ robot.unique_robot_id }}";
+    const stateTimers = {}; // タイマー管理
+    let socket;
+
+    function initializeRobotPosition() {
+        const robotIcon = document.getElementById("robot-icon");
+        const map = document.getElementById("map");
+
+        if (!robotIcon || !map) {
+            return;
+        }
+
+        const gridSize = 20;
+        const mapWidth = map.offsetWidth;
+        const mapHeight = map.offsetHeight;
+        const centerX = Math.floor(mapWidth / 2);
+        const centerY = Math.floor(mapHeight /2);
+        robotIcon.style.position = "absolute";
+        robotIcon.style.left = `${centerX}px`;
+        robotIcon.style.top = `${centerY}px`;
+    }
+
+    function initializeWebSocket() {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            return;
+        }
+
+        const socketUrl = "wss://monitoring.ddns.net/ws/frontend/";
+        socket = new WebSocket(socketUrl);
+
+        socket.onopen = () => {
+            console.log("WebSocket connection established.");
+        };
+
+        socket.onmessage = (event) => {
+            try {
+                const dataList = JSON.parse(event.data);
+                dataList.forEach((data) => {
+                    if (data.unique_robot_id === uniqueRobotId) {
+                        updateRobotRow(data);
+                    }
+                });
+            } catch (error) {
+                console.error("Error processing WebSocket message:", error);
+            }
+        };
+
+        socket.onerror = (error) => {
+            console.error("WebSocket error:", error);
+        };
+
+        socket.onclose = () => {
+            console.warn("WebSocket connection closed. Retrying in 5 seconds...");
+            setTimeout(() => {
+                initializeWebSocket();
+            }, 5000);
+        };
+    } 
+
+    function updateRobotRow(data) {
+        const uniqueId = data.unique_robot_id;
+        const stateContainer = document.getElementById(`state-${uniqueId}`);
+        const lastUpdatedElement = document.getElementById(`last-updated-${uniqueId}`);
+        const connectionTimeElement = document.getElementById(`connection-time-${uniqueId}`);
+        const table = document.getElementById("robot-detail-table");
+        const robotIcon = document.getElementById("robot-icon");
+
+        if (!stateContainer || !lastUpdatedElement || !connectionTimeElement) {
+            return;
+        }
+
+        // 接続時間と最終更新時刻を更新
+        stateContainer.textContent = "Connecting";
+        connectionTimeElement.textContent = data.connection_time || "00:00:00";
+        lastUpdatedElement.textContent = new Date(data.timestamp).toLocaleString();
+        robotIcon.style.display = "block";
+
+        // 状態をリストとして処理し、新しい行として追加
+
+            let stateData = data.state;
+            const existingRows = table.querySelectorAll(`tr.state-row-${uniqueId}`);
+            existingRows.forEach((row) => row.remove());
+
+            if (typeof stateData === "string") {
+                try {
+                    stateData = JSON.parse(stateData);
+                } catch (error) {
+                    console.error("Failed to parse state data:", stateData);
+                    return;
+                }
+            }
+
+            if (stateData && typeof stateData === "object" && !Array.isArray(stateData)) {
+                console.log("Processing valid state data:", stateData);
+
+                let posX = null;
+                let posY = null;
+
+                Object.entries(stateData).forEach(([key, value]) => {
+                    const newRow = document.createElement("tr");
+                    newRow.classList.add(`state-row-${uniqueId}`);
+                    newRow.innerHTML = `
+                        <th>${key}</th>
+                        <td>${value}</td>
+                    `;
+                    table.querySelector("tbody").appendChild(newRow);
+
+                    // pos_x と pos_y をチェック
+                    if (key === "pos_x") {
+                        posX = parseFloat(value);
+                    }
+
+                    if (key === "pos_y") {
+                        posY = parseFloat(value);
+                    }
+
+                });
+
+                if (!isNaN(posX) && !isNaN(posY)) {
+                    updateRobotPosition({ pos_x: posX, pos_y: posY });
+                }
+
+            } else {
+                console.error("Invalid state data detected:", stateData);
+            } 
+
+        // 状態更新タイマーのリセット
+        if (stateTimers[uniqueId]) {
+            clearTimeout(stateTimers[uniqueId]);
+        }
+
+        stateTimers[uniqueId] = setTimeout(() => {
+            stateContainer.textContent = "Non-Connect";
+            connectionTimeElement.textContent = "00:00:00";
+            robotIcon.style.display = "none";
+        }, 5000);
+    }
+
+function updateRobotPosition(data) {
+    const robotIcon = document.getElementById("robot-icon");
+    const map = document.getElementById("map");
+
+    if (!robotIcon || !map) {
+        console.error("Map or robot icon not found.");
+        return;
+    }
+
+    const posX = parseFloat(data.pos_x);
+    const posY = parseFloat(data.pos_y);
+
+    if (!isNaN(posX) && !isNaN(posY)) {
+        const gridSize = 40; // グリッドの1マスのサイズ（20px）
+        const mapWidth = map.offsetWidth;
+        const mapHeight = map.offsetHeight;
+
+        // 赤丸の新しい位置を計算（中央基準）
+        const x = (posX * gridSize);
+        const y = (mapHeight*1.1) - (posY * gridSize);
+
+        // 赤丸の位置を更新
+        robotIcon.style.left = `${x}px`;
+        robotIcon.style.top = `${y}px`;
+        robotIcon.style.display = "block"; // 表示
+
+        console.log("Robot position updated:", { posX, posY, x, y });
+    } else {
+        console.error("Invalid position data:", data);
+
+        // 無効な場合は赤丸を非表示
+        robotIcon.style.display = "none";
+    }
+}
+    initializeRobotPosition();
+    initializeWebSocket();
+</script>
+{% endblock %}

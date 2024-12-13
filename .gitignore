@@ -2,6 +2,7 @@
 *.pot
 *.pyc
 *.env
+*.rdb
 *.sqlite3
 migrations/
 __pycache__/

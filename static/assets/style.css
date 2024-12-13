@@ -12,7 +12,44 @@ body {
 }
 
 footer {
-    margin-top: 20px;
-    font-size: 0.9rem;
-    color: #666666;
+    width:100%;
+
+    margin-top: 50px;
+    font-size: 1.0rem;
+    background-color: #222222;
+    position: fixed;
+    bottom: 0; 
+
+}
+
+.mt-10 {
+    margin-top: 190px;     
+}
+
+.card-bg{
+    background-color: #222222;
+}
+
+.grid-container {
+    width: 400px;
+    height: 400px; /* 高さを調整 */
+    position: relative;
+    background: linear-gradient(to right, #ccc 1px, transparent 1px),
+                linear-gradient(to bottom, #ccc 1px, transparent 1px);
+    background-size: 20px 20px; /* グリッドのサイズ */
+    border: 1px solid #00000073; /* 領域の枠線 */
+    overflow: hidden;
+    margin-left: 50px;
+    
+}
+
+.robot-icon {
+    width: 15px; 
+    height: 15px;
+    background-color: rgba(255, 0, 0, 0.42);
+    border-radius: 50%;
+    position: relative;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    display: none; 
 }

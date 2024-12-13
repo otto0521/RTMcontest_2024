@@ -1,132 +1,124 @@
-from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
-from django.contrib.auth import login, logout
-from django.shortcuts import render, redirect
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth import login
+from django.shortcuts import render, redirect, get_object_or_404
 from django.utils.safestring import mark_safe
-from django.http import JsonResponse
-from rest_framework.decorators import api_view, permission_classes
+from django.utils.timezone import localtime
+from django.db.models import Max
+from django.views.generic import DetailView, TemplateView, FormView
+from django.urls import reverse_lazy
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
+from rest_framework.generics import RetrieveUpdateDestroyAPIView, ListCreateAPIView, ListAPIView
 from rest_framework.pagination import PageNumberPagination
 from .models import Robot, RobotStateHistory
 from .serializers import RobotSerializer, RobotStateHistorySerializer
 import json
 
-# サインアップ
-def signup(request):
-    """
-    新しいユーザーを登録するビュー
-    """
-    if request.method == "POST":
-        form = UserCreationForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            login(request, user)
-            return redirect('robot_dashboard')
-    else:
-        form = UserCreationForm()
-    return render(request, "signup.html", {"form": form})
 
+# ダッシュボード
+class RobotDashboardView(LoginRequiredMixin, TemplateView):
+    template_name = "robots.html"
 
-# ログイン後のダッシュボード
-@login_required
-def robot_dashboard(request):
-    """
-    ログイン後のロボットダッシュボード
-    """
-    robots = Robot.objects.filter(owner=request.user)
-    robots_json = mark_safe(json.dumps([  # 初期状態を"Non-connect"に設定
-        {
-            "unique_robot_id": robot.unique_robot_id,
-            "robot_id": robot.robot_id,
-            "owner": robot.owner.username,
-            "last_connected": robot.last_connected.isoformat(),
-            "state": "Non-connect",  # 状態のデフォルト値
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        robots = Robot.objects.filter(owner=self.request.user)
+
+        latest_timestamps = (
+            RobotStateHistory.objects.filter(robot__in=robots)
+            .values("robot_id")  
+            .annotate(latest_timestamp=Max("timestamp")) 
+        )
+
+        latest_timestamps_map = {
+            entry["robot_id"]: entry["latest_timestamp"]
+            for entry in latest_timestamps
         }
-        for robot in robots
-    ]))
-    return render(request, "robots.html", {"robots": robots, "robots_json": robots_json})
+        
+        robots_json = [
+            {
+                "unique_robot_id": robot.unique_robot_id,
+                "robot_id": robot.robot_id,
+                "last_connected": localtime(robot.last_connected).strftime("%Y/%m/%d %H:%M:%S") if robot.last_connected else "Never",
+            }
+            for robot in robots
+        ]
 
+        for robot in robots:
+            robot.latest_timestamp = (
+                localtime(latest_timestamps_map.get(robot.id)).strftime("%Y/%m/%d %H:%M:%S")
+                if latest_timestamps_map.get(robot.id)
+                else "No Data"
+            )
 
-# ログアウト
-@login_required
-def logout_view(request):
-    """
-    ログアウト後のリダイレクト
-    """
-    logout(request)
-    return redirect('login')
+        context["robots"] = robots
+        context["robots_json"] = mark_safe(json.dumps(robots_json))
+        return context
+    
+# 詳細ページ
+class RobotDetailView(DetailView):
+    model = Robot
+    template_name = 'robot_detail.html'
+    context_object_name = 'robot'
 
+    def get_object(self, queryset=None):
+        unique_robot_id = self.kwargs.get('unique_robot_id')
+        robot = get_object_or_404(Robot, unique_robot_id=unique_robot_id)
 
-# ロボットリスト取得および新規作成
-@api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated])
-def robot_list(request):
-    """
-    ロボットのリスト取得（GET）または新規作成（POST）
-    """
-    if request.method == 'GET':
-        robots = Robot.objects.filter(owner=request.user)
-        serializer = RobotSerializer(robots, many=True)
-        return Response(serializer.data)
+        # 最新のtimestampを取得
+        latest_state = RobotStateHistory.objects.filter(robot=robot).aggregate(latest_timestamp=Max('timestamp'))
+        robot.latest_timestamp = (
+            localtime(latest_state['latest_timestamp']).strftime("%Y/%m/%d %H:%M:%S")
+            if latest_state['latest_timestamp']
+            else "No Data"
+        )
+        return robot
 
-    elif request.method == 'POST':
-        data = request.data.copy()
-        data['owner'] = request.user.id  # ユーザーIDを直接設定
-        serializer = RobotSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+# サインアップ
+class SignupView(FormView):
+    template_name = "signup.html"
+    form_class = UserCreationForm
+    success_url = reverse_lazy('robot_dashboard')
 
+    def form_valid(self, form):
+        user = form.save()
+        login(self.request, user)
+        return super().form_valid(form)
+
+# ロボットリスト取得, 新規作成
+class RobotListCreateAPIView(ListCreateAPIView):
+
+    queryset = Robot.objects.all()
+    serializer_class = RobotSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Robot.objects.filter(owner=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
 
 # ロボット詳細取得、更新、削除
-@api_view(['GET', 'PUT', 'DELETE'])
-@permission_classes([IsAuthenticated])
-def robot_detail(request, unique_robot_id):
-    """
-    指定されたロボットの詳細を取得、更新、または削除
-    """
-    try:
-        robot = Robot.objects.get(unique_robot_id=unique_robot_id, owner=request.user)
-    except Robot.DoesNotExist:
-        return Response({"error": "Robot not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
+class RobotDetailAPIView(RetrieveUpdateDestroyAPIView):
 
-    if request.method == 'GET':
-        serializer = RobotSerializer(robot)
-        return Response(serializer.data)
+    queryset = Robot.objects.all()
+    serializer_class = RobotSerializer
+    permission_classes = [IsAuthenticated]
 
-    elif request.method == 'PUT':
-        data = request.data.copy()
-        data['owner'] = request.user.id  # ユーザーIDを直接設定
-        serializer = RobotSerializer(robot, data=data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    def get_queryset(self):
+        return Robot.objects.filter(owner=self.request.user)
 
-    elif request.method == 'DELETE':
-        robot.delete()
-        return Response({"message": "Robot deleted successfully."}, status=status.HTTP_200_OK)
+    def perform_update(self, serializer):
+        serializer.save(owner=self.request.user)
 
+#ロボット履歴取得
+class RobotStateHistoryAPIView(ListAPIView):
 
-# ロボットの状態履歴取得
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def robot_state_history(request, unique_robot_id):
-    """
-    指定されたロボットの状態履歴を取得
-    """
-    try:
-        robot = Robot.objects.get(unique_robot_id=unique_robot_id, owner=request.user)
-    except Robot.DoesNotExist:
-        return Response({"error": "Robot not found or access denied."}, status=status.HTTP_404_NOT_FOUND)
+    serializer_class = RobotStateHistorySerializer
+    pagination_class = PageNumberPagination
+    permission_classes = [IsAuthenticated]
 
-    histories = RobotStateHistory.objects.filter(robot=robot)
-
-    # ページネーション
-    paginator = PageNumberPagination()
-    paginated_histories = paginator.paginate_queryset(histories, request)
-    serializer = RobotStateHistorySerializer(paginated_histories, many=True)
-    return paginator.get_paginated_response(serializer.data)
+    def get_queryset(self):
+        unique_robot_id = self.kwargs['unique_robot_id']
+        robot = Robot.objects.filter(unique_robot_id=unique_robot_id, owner=self.request.user).first()
+        robot = get_object_or_404(Robot, unique_robot_id=unique_robot_id, owner=self.request.user)
+        return RobotStateHistory.objects.filter(robot=robot)

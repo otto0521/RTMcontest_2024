@@ -4,31 +4,41 @@ import asyncio
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.auth import AuthMiddlewareStack
+from channels.layers import get_channel_layer
 
 # ログ設定
 logger = logging.getLogger("django")
 
-# Django 設定モジュールを指定
+# Django 設定モジュール指定
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "app.settings")
 
-# 遅延インポートを利用するための関数
+# 遅延インポート関数
 def get_websocket_urlpatterns():
     from api.routing import websocket_urlpatterns
     return websocket_urlpatterns
 
+def get_start_tasks():
+    from api.consumers import start_tasks
+    return start_tasks
+
 # Lifespan handler for startup and shutdown events
 async def lifespan(scope, receive, send):
     if scope["type"] == "lifespan":
-        tasks = []  # 追跡するタスクのリスト
+        tasks = []
         try:
             while True:
                 message = await receive()
                 if message["type"] == "lifespan.startup":
                     logger.info("ASGI server starting up.")
+
+                    # start_tasks を取得し、channel_layer を渡す
+                    start_tasks = get_start_tasks()
+                    channel_layer = get_channel_layer()
+                    tasks.append(asyncio.create_task(start_tasks(channel_layer)))
+
                     await send({"type": "lifespan.startup.complete"})
                 elif message["type"] == "lifespan.shutdown":
                     logger.info("ASGI server shutting down. Cancelling tasks.")
-                    # タスクのキャンセル処理
                     for task in tasks:
                         task.cancel()
                     await asyncio.gather(*tasks, return_exceptions=True)
@@ -37,17 +47,16 @@ async def lifespan(scope, receive, send):
         except Exception as e:
             logger.error(f"Lifespan error: {e}", exc_info=True)
             await send({"type": "lifespan.shutdown.complete"})
-
 try:
     application = ProtocolTypeRouter({
-        "http": get_asgi_application(),  # HTTP プロトコル用
-        "websocket": AuthMiddlewareStack(  # WebSocket プロトコル用
+        "http": get_asgi_application(),
+        "websocket": AuthMiddlewareStack(
             URLRouter(
-                get_websocket_urlpatterns()  # 遅延ロード
+                get_websocket_urlpatterns()
             )
         ),
-        "lifespan": lifespan,  # Lifespan プロトコルを追加
+        "lifespan": lifespan,
     })
 except Exception as e:
-    logger.exception("ASGI application initialization error")  # スタックトレースを含む
+    logger.exception("ASGI application initialization error")
     raise

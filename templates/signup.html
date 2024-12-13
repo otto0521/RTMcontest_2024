@@ -4,9 +4,9 @@
 {% block title %}Sign Up{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-center align-items-center vh-100 bg-secondary">
-    <div class="card shadow-lg border-0" style="width: 350px; border-radius: 12px; background-color:white;">
-        <div class="card-header text-white text-center bg-primary" 
+<div class="d-flex justify-content-center">
+    <div class="card shadow-lg border-0 mt-10" style="width: 350px; border-radius: 12px; background-color:white;">
+        <div class="card-header card-bg text-white text-center" 
              style="border-top-left-radius: 12px; border-top-right-radius: 12px;">
             <small>Create an account</small>
         </div>
@@ -28,7 +28,7 @@
                 <button type="submit" class="btn btn-primary btn-sm w-50">Sign Up</button>
             </form>
         </div>
-        <div class="card-footer bg-primary text-center text-white" 
+        <div class="card-footer card-bg text-center text-white" 
              style="border-bottom-left-radius: 12px; border-bottom-right-radius: 12px;">
             <p class="mb-0">Already have an account? <a href="{% url 'login' %}" class="text-warning">Login</a></p>
         </div>
