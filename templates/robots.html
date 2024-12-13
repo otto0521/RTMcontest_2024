@@ -152,7 +152,7 @@
 
         // タイマーを設定：データが 5 秒間来なかった場合に状態を変更
         stateTimers[uniqueId] = setTimeout(() => {
-            stateElement.textContent = "Non-Connecting";
+            stateElement.textContent = "Non-Connect";
             connectionTimeElement.textContent = "00:00:00"
             resetConnectionTimer(uniqueId); // 接続時間をリセット
         }, 5000);
