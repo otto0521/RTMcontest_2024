@@ -20,8 +20,8 @@ shared_frontend_data_buffer = {}  # フロントエンド更新用キャッシ�
 
 class RobotStateConsumer(AsyncWebsocketConsumer):
     # WebSocket関連設定
-    frontend_update_interval = 1  # フロントエンド更新間隔（秒）
-    flush_interval = 10  # DBフラッシュ間隔（秒）
+    frontend_update_interval = 0.2  # フロントエンド更新間隔（秒）
+    flush_interval = 30  # DBフラッシュ間隔（秒）
     robot_connection_times = {}  # { unique_robot_id: 接続開始時刻 }
     max_cache_size = 100  # キャッシュの最大サイズ
     ping_interval = 60  # サーバーからpingを送信する間隔（秒）
@@ -85,11 +85,12 @@ class RobotStateConsumer(AsyncWebsocketConsumer):
                 formatted_connection_time = f"{connection_time // 3600:02}:{(connection_time % 3600) // 60:02}:{connection_time % 60:02}"
 
                 # キャッシュにデータを追加
-                shared_robot_cache[self.unique_robot_id].append({
-                    "robot_id": data["robot_id"],
-                    "state": data["state"],
-                    "timestamp": now(),
-                })
+                if len(shared_robot_cache[self.unique_robot_id]) == 0 or (now() - shared_robot_cache[self.unique_robot_id][-1]['timestamp']).total_seconds() >= 5:
+                    shared_robot_cache[self.unique_robot_id].append({
+                        "robot_id": data["robot_id"],
+                        "state": data["state"],
+                        "timestamp": now(),
+                    })
 
                 # キャッシュサイズ制限の確認
                 if len(shared_robot_cache[self.unique_robot_id]) > self.max_cache_size:
@@ -157,7 +158,7 @@ class SharedTasks:
     @staticmethod
     async def flush_to_db():
         while True:
-            await asyncio.sleep(10)  # 10秒間隔で実行
+            await asyncio.sleep(30)  # 30秒間隔で実行
             try:
                 # キャッシュが空ならスキップ
                 if not any(shared_robot_cache.values()):
@@ -189,7 +190,7 @@ class SharedTasks:
     @staticmethod
     async def send_to_frontend(channel_layer):
         while True:
-            await asyncio.sleep(1)  # 1秒間隔で実行
+            await asyncio.sleep(0.2)  # 0.2秒間隔で実行
             try:
                 # フロントエンドバッファが空ならスキップ
                 if not shared_frontend_data_buffer:

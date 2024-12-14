@@ -30,6 +30,7 @@
                 <tr id="robot-{{ robot.unique_robot_id }}">
                     <td>{{ robot.robot_id }}</td>
                     <td>
+                        <span id="state-icon-{{ robot.unique_robot_id }}" class="status-indicator non-connect"></span>
                         <span id="state-{{ robot.unique_robot_id }}">Non-Connect</span>
                     </td>
                     <td>
@@ -130,14 +131,17 @@
         const stateElement = document.getElementById(`state-${uniqueId}`);
         const lastUpdatedElement = document.getElementById(`last-updated-${uniqueId}`);
         const connectionTimeElement = document.getElementById(`connection-time-${uniqueId}`);
+        const stateIcon = document.getElementById(`state-icon-${uniqueId}`);
 
         // 該当ロボットの行が存在しなければ処理を終了
-        if (!stateElement || !lastUpdatedElement || !connectionTimeElement) {
-            return;
+        if (!stateElement || !stateIcon || !lastUpdatedElement || !connectionTimeElement) {
+        return;
         }
 
         // 状態を "Connecting" に更新
         stateElement.textContent = "Connecting";
+        stateIcon.classList.remove("non-connect");
+        stateIcon.classList.add("connecting");
 
         // 接続時間更新
         connectionTimeElement.textContent = data.connection_time || "00:00:00";
@@ -153,6 +157,8 @@
         // タイマーを設定：データが 5 秒間来なかった場合に状態を変更
         stateTimers[uniqueId] = setTimeout(() => {
             stateElement.textContent = "Non-Connect";
+            stateIcon.classList.remove("connecting");
+            stateIcon.classList.add("non-connect");
             connectionTimeElement.textContent = "00:00:00"
             resetConnectionTimer(uniqueId); // 接続時間をリセット
         }, 5000);

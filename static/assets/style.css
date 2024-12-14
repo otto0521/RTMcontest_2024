@@ -32,14 +32,20 @@ footer {
 
 .grid-container {
     width: 400px;
-    height: 400px; /* 高さを調整 */
+    height: 400px;
     position: relative;
     background: linear-gradient(to right, #ccc 1px, transparent 1px),
                 linear-gradient(to bottom, #ccc 1px, transparent 1px);
-    background-size: 20px 20px; /* グリッドのサイズ */
-    border: 1px solid #00000073; /* 領域の枠線 */
+    background-size: 20px 20px; 
+    border: 1px solid #00000073; 
     overflow: hidden;
-    margin-left: 50px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 auto; 
+ 
+    border: 1px solid rgba(255, 255, 255, 0.8); /* 境界線を調整 */
+    background-color: rgba(0, 0, 0, 0.05);
     
 }
 
@@ -52,4 +58,20 @@ footer {
     transform: translate(-50%, -50%);
     pointer-events: none;
     display: none; 
+}
+
+.status-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+}
+
+.status-indicator.non-connect {
+    background-color: red;
+}
+
+.status-indicator.connecting {
+    background-color: green;
 }

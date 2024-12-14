@@ -17,7 +17,7 @@
             </div>
         </div>
     </div>
-    <div class="row">
+    <div class="row d-flex justify-content-centerm mb-5">
         <div class="col-md-6 col-sm-12"> 
             <table class="table table-dark table-striped w-100" id="robot-detail-table" style="max-width: 100%;">
                 <thead>
@@ -51,6 +51,22 @@
                 <div id="robot-icon" class="robot-icon"></div>
             </div>
         </div>
+        
+    </div>
+    <div class="row">
+        <div class="col-md-6 col-sm-12">
+            <div class="">
+                <div class="text-center mt-4">
+                    <a href="{% url 'robot_dashboard' %}" class="btn btn-danger">Back to Top</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-sm-12">
+            <div>
+                <h5 class="text-top text-light">Current,speed vs Connection Time</h5>
+                <canvas id="current-chart"></canvas>
+            </div>
+        </div>
     </div>
     <div class="text-center mt-4">
         <a href="{% url 'robot_dashboard' %}" class="btn btn-danger">Back to Top</a>
@@ -58,9 +74,86 @@
 </div>
 
 <script>
+    const currentChartCanvas = document.getElementById("current-chart");
     const uniqueRobotId = "{{ robot.unique_robot_id }}";
-    const stateTimers = {}; // タイマー管理
+    const stateTimers = {};
     let socket;
+
+    const speedData = [];
+    const currentData = [];
+    const connectionTimeLabels = [];
+    const maxDataPoints = 20;
+   
+    const currentChartCtx = document.getElementById('current-chart').getContext('2d');
+
+       const currentChart = new Chart(currentChartCtx, {
+        type: 'line',
+        data: {
+            labels: connectionTimeLabels,
+            datasets: [{
+                label: 'Current',
+                data: currentData,
+                borderColor: 'rgba(255, 99, 132, 1)',
+                backgroundColor: 'rgba(255, 99, 132, 0.4)',
+                tension: 0.1,
+                fill: true,
+                borderWidth: 2 
+            },
+            {
+                label: 'Speed',
+                data: speedData,
+                borderColor: 'rgba(54, 162, 235, 1)',
+                backgroundColor: 'rgba(54, 162, 235, 0.4)',
+                tension: 0.1,
+                fill: true,
+                borderWidth: 2
+        }
+            ]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: 'Time (s)',
+                        font: { size: 14, weight: 'bold' },
+                        color: '#ffffff'
+                    },
+                    ticks: {
+                        font: { size: 12, weight: 'bold' },
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.2)',
+                        lineWidth: 2
+                    }
+                },
+                y: {
+                    title: {
+                        display: true,
+                        text: 'Current',
+                        font: { size: 14, weight: 'bold' },
+                        color: '#ffffff'
+                    },
+                    ticks: {
+                        font: { size: 12, weight: 'bold' },
+                        color: '#ffffff'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.2)',
+                        lineWidth: 2
+                    },
+                    beginAtZero: true
+                }
+            },
+            plugins: {
+                legend: {
+                    display:false
+                }
+            }
+        }
+    });
 
     function initializeRobotPosition() {
         const robotIcon = document.getElementById("robot-icon");
@@ -85,7 +178,9 @@
             return;
         }
 
-        const socketUrl = "wss://monitoring.ddns.net/ws/frontend/";
+        const socketUrl = `wss://monitoring.ddns.net/ws/frontend/`;
+        // const socketUrl = `ws://localhost:8000/ws/frontend/`;
+        
         socket = new WebSocket(socketUrl);
 
         socket.onopen = () => {
@@ -98,6 +193,7 @@
                 dataList.forEach((data) => {
                     if (data.unique_robot_id === uniqueRobotId) {
                         updateRobotRow(data);
+                        updateGraphs(data);
                     }
                 });
             } catch (error) {
@@ -117,6 +213,37 @@
         };
     } 
 
+    function updateGraphs(data) { 
+
+        let parsedState;
+        try {
+            parsedState = JSON.parse(data.state);
+        } catch (error) {
+            console.error("Error parsing state:", data.state, error);
+            return; 
+        }
+    
+        const speed = Number(parsedState.speed) || 0; 
+        const current = Number(parsedState.current) || 0;
+        const timeLabel = data.connection_time || '0';
+
+        if (connectionTimeLabels.length >= maxDataPoints) {
+            connectionTimeLabels.shift(); 
+            speedData.shift();
+            currentData.shift();
+        }
+
+        connectionTimeLabels.push(timeLabel);
+        speedData.push(speed);
+        currentData.push(current);
+        
+        currentChart.data.labels = connectionTimeLabels;
+        currentChart.data.datasets[0].data = currentData;
+        currentChart.data.datasets[1].data = speedData;
+        currentChart.update();
+        
+    }
+
     function updateRobotRow(data) {
         const uniqueId = data.unique_robot_id;
         const stateContainer = document.getElementById(`state-${uniqueId}`);
@@ -129,7 +256,6 @@
             return;
         }
 
-        // 接続時間と最終更新時刻を更新
         stateContainer.textContent = "Connecting";
         connectionTimeElement.textContent = data.connection_time || "00:00:00";
         lastUpdatedElement.textContent = new Date(data.timestamp).toLocaleString();
@@ -151,7 +277,6 @@
             }
 
             if (stateData && typeof stateData === "object" && !Array.isArray(stateData)) {
-                console.log("Processing valid state data:", stateData);
 
                 let posX = null;
                 let posY = null;
@@ -209,7 +334,7 @@ function updateRobotPosition(data) {
     const posY = parseFloat(data.pos_y);
 
     if (!isNaN(posX) && !isNaN(posY)) {
-        const gridSize = 40; // グリッドの1マスのサイズ（20px）
+        const gridSize = 40; 
         const mapWidth = map.offsetWidth;
         const mapHeight = map.offsetHeight;
 
